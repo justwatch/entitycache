@@ -46,7 +46,7 @@ func New(
 				Name: promMetricName,
 				Help: "A counter of hit/miss on the entity cache.",
 			},
-			[]string{"method", "hit"},
+			[]string{"namespace", "hit"},
 		),
 
 		maxEntries: maxEntries,
@@ -68,8 +68,8 @@ func (sc *EntityCache) Get(
 	case hit && !needsRefresh:
 		// If no error and we have fresh cached result, we return.
 		sc.promHitCounter.With(prometheus.Labels{
-			"method": namespace,
-			"hit":    "true",
+			"namespace": namespace,
+			"hit":       "true",
 		}).Inc()
 
 	case hit && needsRefresh:
@@ -79,8 +79,8 @@ func (sc *EntityCache) Get(
 			return err
 		})
 		sc.promHitCounter.With(prometheus.Labels{
-			"method": namespace,
-			"hit":    "true",
+			"namespace": namespace,
+			"hit":       "true",
 		}).Inc()
 
 	default:
@@ -123,8 +123,8 @@ func (sc *EntityCache) getAndCacheSource(
 
 		if exportMetrics {
 			sc.promHitCounter.With(prometheus.Labels{
-				"method": namespace,
-				"hit":    "false",
+				"namespace": namespace,
+				"hit":       "false",
 			}).Inc()
 		}
 		return value, ok, err
@@ -135,8 +135,8 @@ func (sc *EntityCache) getAndCacheSource(
 
 	if exportMetrics {
 		sc.promHitCounter.With(prometheus.Labels{
-			"method": namespace,
-			"hit":    "true",
+			"namespace": namespace,
+			"hit":       "true",
 		}).Inc()
 	}
 	return cached, true, nil

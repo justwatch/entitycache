@@ -27,7 +27,7 @@ type InMemOptions struct {
 	TTL        time.Duration
 }
 
-func NewEntityCache(
+func New(
 	inMemOptions InMemOptions,
 	promMetricName string,
 ) (*EntityCache, error) {

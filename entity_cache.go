@@ -15,26 +15,27 @@ var _ prometheus.Collector = &EntityCache{}
 type EntityCache struct {
 	promHitCounter *prometheus.CounterVec
 
-	inMemOptions InMemOptions
-	cache        *ristretto.Cache
-	locker       *locker.EntityLocker
+	maxEntries int64
+	ttr        time.Duration
+	ttl        time.Duration
+	cache      *ristretto.Cache
+	locker     *locker.EntityLocker
 }
 
 // InMemOptions are caching options.
 type InMemOptions struct {
-	MaxEntries int64
-	TTR        time.Duration
-	TTL        time.Duration
 }
 
 func New(
-	inMemOptions InMemOptions,
+	maxEntries int64,
+	ttr time.Duration,
+	ttl time.Duration,
 	promMetricName string,
 ) (*EntityCache, error) {
 	cache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 10 * inMemOptions.MaxEntries, // Number of keys to track frequency of (recommended 10x the number of entries).
-		MaxCost:     inMemOptions.MaxEntries,      // Maximum size of cache.
-		BufferItems: 64,                           // Number of keys per Get buffer. Default value.
+		NumCounters: 10 * maxEntries, // Number of keys to track frequency of (recommended 10x the number of entries).
+		MaxCost:     maxEntries,      // Maximum size of cache.
+		BufferItems: 64,              // Number of keys per Get buffer. Default value.
 	})
 	if err != nil {
 		return nil, err
@@ -48,9 +49,12 @@ func New(
 			[]string{"method", "hit"},
 		),
 
-		inMemOptions: inMemOptions,
-		cache:        cache,
-		locker:       locker.NewEntityLocker(),
+		maxEntries: maxEntries,
+		ttr:        ttr,
+		ttl:        ttl,
+
+		cache:  cache,
+		locker: locker.NewEntityLocker(),
 	}, nil
 }
 
@@ -155,10 +159,10 @@ func (sc *EntityCache) getFromCache(cacheKey string) (value interface{}, needsRe
 
 func (sc *EntityCache) setToCache(cacheKey string, value interface{}) {
 	v := timestampedCacheValue{
-		NeedsRefreshAt: time.Now().Add(sc.inMemOptions.TTR),
+		NeedsRefreshAt: time.Now().Add(sc.ttr),
 		Value:          value,
 	}
-	sc.cache.SetWithTTL(cacheKey, v, 1, sc.inMemOptions.TTL)
+	sc.cache.SetWithTTL(cacheKey, v, 1, sc.ttl)
 }
 
 // runAsync runs a job in the background.

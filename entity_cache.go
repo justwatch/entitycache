@@ -61,7 +61,7 @@ func New(
 func (sc *EntityCache) Get(
 	ctx context.Context,
 	namespace, key string,
-	fetchFromSourceFunc func(ctx context.Context, getFromCache CacheGetter, setToCache CacheSetter) (value interface{}, ok bool, err error),
+	fetchFromSourceFunc func(ctx context.Context, setToCache CacheSetter) (value interface{}, ok bool, err error),
 ) (interface{}, bool, error) {
 	cached, needsRefresh, hit := sc.getFromCache(buildCacheKey(namespace, key))
 	switch {
@@ -93,7 +93,7 @@ func (sc *EntityCache) Get(
 func (sc *EntityCache) getAndCacheSource(
 	ctx context.Context,
 	namespace, key string,
-	fetchFromSourceFunc func(ctx context.Context, getFromCache CacheGetter, setToCache CacheSetter) (value interface{}, ok bool, err error),
+	fetchFromSourceFunc func(ctx context.Context, setToCache CacheSetter) (value interface{}, ok bool, err error),
 	exportMetrics bool,
 ) (interface{}, bool, error) {
 	cacheKey := buildCacheKey(namespace, key)
@@ -108,10 +108,6 @@ func (sc *EntityCache) getAndCacheSource(
 	if !hit {
 		value, ok, err := fetchFromSourceFunc(
 			ctx,
-			func(key string) (value interface{}, ok bool) {
-				v, ok, _ := sc.getFromCache(buildCacheKey(namespace, key))
-				return v, ok
-			},
 			func(key string, value interface{}) {
 				sc.setToCache(buildCacheKey(namespace, key), value)
 			},
@@ -189,9 +185,6 @@ func (sc *EntityCache) Collect(ch chan<- prometheus.Metric) {
 func buildCacheKey(namespace, key string) string {
 	return fmt.Sprintf("%s|%s", namespace, key)
 }
-
-// CacheGetter is a function that returns a value from the cache.
-type CacheGetter func(key string) (value interface{}, ok bool)
 
 // CacheSetter is a function that sets a value in the cache.
 type CacheSetter func(key string, value interface{})

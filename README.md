@@ -1,6 +1,6 @@
 # entitycache
 
-A simple entity in-mem cache with TTL, TTR, LFU policies, based on Ristretto.
+A simple entity in-mem synchronised cache with TTL, TTR and LFU policies, based on Ristretto.
 
 # Basic usage
 
@@ -15,7 +15,7 @@ if err != nil {
 // Let's say we want to cache the document with the ID 128.
 documentID := 128
 
-document, ok, err := cache.Get(ctx, "documents", fmt.Sprintf("%d", documentID), func(ctx context.Context, _ entitycache.CacheSetter) (value interface{}, ok bool, err error) {
+document, ok, err := cache.Get(ctx, "documents", fmt.Sprintf("%d", documentID), func(ctx context.Context) (value interface{}, ok bool, err error) {
     document, err := getDocumentByID(ctx, documentID)
     if err != nil {
         if err == sql.ErrNoRows {
@@ -45,9 +45,12 @@ documentID := 128
 language := "fr"
 // Our cache key would then be for example:
 key := fmt.Sprintf("%d-%s", documentID, language)
+// We additionally cache the document for an "any" key.
+// All the languages being requested will keep this entry warm.
+anyKey := fmt.Sprintf("%d-any", documentID)
 
 // We get the french document from the cache.
-document, ok, err := cache.Get(ctx, "documents", key, func(ctx context.Context, set entitycache.CacheSetter) (value interface{}, ok bool, err error) {
+document, ok, err := cache.MultiKeyGet(ctx, "documents", key, []string{anyKey}, func(ctx context.Context) (value interface{}, ok bool, err error) {
     if language == "any" {
         // We fallback to english by default.
         language = "en"
@@ -59,11 +62,6 @@ document, ok, err := cache.Get(ctx, "documents", key, func(ctx context.Context, 
         }
         return nil, false, err
     }
-
-    // We additionally cache the document for an "any" key.
-    // All the languages being requested will keep this entry warm.
-    set(fmt.Sprintf("%d-any", documentID), document)
-
     return document, true, nil
 })
 

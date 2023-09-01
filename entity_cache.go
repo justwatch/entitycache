@@ -58,10 +58,20 @@ func New(
 	}, nil
 }
 
+// Get returns a cached value or fetches it from the source.
 func (sc *EntityCache) Get(
 	ctx context.Context,
 	namespace, key string,
-	fetchFromSourceFunc func(ctx context.Context, setToCache CacheSetter) (value interface{}, ok bool, err error),
+	fetchFromSourceFunc func(ctx context.Context) (value interface{}, ok bool, err error),
+) (interface{}, bool, error) {
+	return sc.MultiKeyGet(ctx, namespace, key, nil, fetchFromSourceFunc)
+}
+
+// MultiKeyGet returns a cached value or fetches it from the source, but allows to read from one cache key and write to many
+func (sc *EntityCache) MultiKeyGet(
+	ctx context.Context,
+	namespace, key string, extraKeys []string,
+	fetchFromSourceFunc func(ctx context.Context) (value interface{}, ok bool, err error),
 ) (interface{}, bool, error) {
 	cached, needsRefresh, hit := sc.getFromCache(buildCacheKey(namespace, key))
 	switch {
@@ -75,7 +85,7 @@ func (sc *EntityCache) Get(
 	case hit && needsRefresh:
 		// If no error but we have stale cached result, we refresh async and return.
 		sc.runAsync(ctx, func(ctx context.Context) error {
-			_, _, err := sc.getAndCacheSource(ctx, namespace, key, fetchFromSourceFunc, false)
+			_, _, err := sc.getAndCacheSource(ctx, namespace, key, extraKeys, fetchFromSourceFunc, false)
 			return err
 		})
 		sc.promHitCounter.With(prometheus.Labels{
@@ -85,15 +95,15 @@ func (sc *EntityCache) Get(
 
 	default:
 		// If no error and no cached result, we fetch from the source and refresh the cache.
-		return sc.getAndCacheSource(ctx, namespace, key, fetchFromSourceFunc, true)
+		return sc.getAndCacheSource(ctx, namespace, key, extraKeys, fetchFromSourceFunc, true)
 	}
 	return cached, true, nil
 }
 
 func (sc *EntityCache) getAndCacheSource(
 	ctx context.Context,
-	namespace, key string,
-	fetchFromSourceFunc func(ctx context.Context, setToCache CacheSetter) (value interface{}, ok bool, err error),
+	namespace, key string, extraKeys []string,
+	fetchFromSourceFunc func(ctx context.Context) (value interface{}, ok bool, err error),
 	exportMetrics bool,
 ) (interface{}, bool, error) {
 	cacheKey := buildCacheKey(namespace, key)
@@ -106,14 +116,12 @@ func (sc *EntityCache) getAndCacheSource(
 
 	// If yes (i.e. we still need to refetch the data), we do actually refetch the data and unlock.
 	if !hit {
-		value, ok, err := fetchFromSourceFunc(
-			ctx,
-			func(key string, value interface{}) {
-				sc.setToCache(buildCacheKey(namespace, key), value)
-			},
-		)
+		value, ok, err := fetchFromSourceFunc(ctx)
 		if ok {
 			sc.setToCache(cacheKey, value)
+			for _, extraKey := range extraKeys {
+				sc.setToCache(buildCacheKey(namespace, extraKey), value)
+			}
 		}
 		sc.locker.Unlock(cacheKey)
 

@@ -1,4 +1,4 @@
-module github.com/solher/entitycache
+module github.com/justwatch/entitycache
 
 go 1.21.0
 

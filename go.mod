@@ -1,4 +1,4 @@
-module github.com/solher/entitycache
+module github.com/justwatch/entitycache
 
 go 1.21.0
 
@@ -22,3 +22,5 @@ require (
 	golang.org/x/sys v0.8.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 )
+
+replace github.com/solher/entitycache => github.com/justwatch/entitycache v0.0.0-20240229045341-55dfa11564a7

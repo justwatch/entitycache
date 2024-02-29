@@ -40,18 +40,19 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+	pr := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: promMetricName,
+			Help: "A counter of hit/miss on the entity cache.",
+		},
+		[]string{"namespace", "hit"},
+	)
+	prometheus.MustRegister(pr)
 	return &EntityCache{
-		promHitCounter: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: promMetricName,
-				Help: "A counter of hit/miss on the entity cache.",
-			},
-			[]string{"namespace", "hit"},
-		),
-
-		maxEntries: maxEntries,
-		ttr:        ttr,
-		ttl:        ttl,
+		promHitCounter: pr,
+		maxEntries:     maxEntries,
+		ttr:            ttr,
+		ttl:            ttl,
 
 		cache:  cache,
 		locker: locker.NewEntityLocker(),
